@@ -7,13 +7,24 @@ description: 프로젝트 폴더(config.json의 projects_root)의 git 저장소�
 
 작업 폴더는 이 저장소의 루트(`thread-manager` 폴더)다. 모든 명령은 이 폴더에서 실행한다.
 이 스킬은 **초안만 만든다. 절대 게시하지 않는다** (`threads.py post`를 실행하지 않는다).
+평일 예약 실행은 `threads-auto`가 이 스킬로 초안을 만든 뒤, 그중 하나를 골라 올린다.
 
 ## 1. 기준과 이력 읽기
+먼저 끝난 초안과 오래된 초안을 보관 폴더로 옮긴다. `posted`·`rejected`·`deleted` 초안과, 만든 지 `backlog_max_age_days`일이 지난 초안(`status`를 `expired`로 바꿈)이 그림과 함께 `drafts/archive/`로 간다.
+```bash
+python3 scripts/threads.py archive
+```
+
 - `style.md`: 올릴 것과 올리지 않을 것, 말투, 반려에서 배운 점
 - `config.json`: 제외할 폴더(`exclude`), 한 번에 만들 초안 수 상한(`max_drafts_per_run`). 대상 저장소는 실행할 때마다 `projects_root` 아래에서 새로 찾는다
 - `posts.log`(있으면): 이미 올린 글. 같은 이야기를 반복하지 않는다
 - `backlog.json`(없으면 빈 목록): 지난 실행에서 상한에 밀려 초안으로 쓰지 못한 후보 주제 (형식은 4-2단계)
-- `drafts/`의 기존 초안 중 `status: draft`, `approved`, `rejected`인 것. 아직 처리되지 않은 초안과 겹치지 않게 하고, 반려된 주제는 다시 꺼내지 않는다
+- `drafts/`의 초안(아직 올리지 않은 `draft`, `approved`): 겹치지 않게 한다
+- `drafts/archive/`의 반려·게시 뒤 지운 주제: 파일 전체를 열지 않고 한 번에 훑어, 다시 꺼내지 않는다
+  ```bash
+  grep -H -E "^(status|repos|reason):" drafts/archive/*.md | grep -B1 -A1 -E "status: (rejected|deleted)"
+  ```
+  출력이 없으면(종료 코드 1) 반려하거나 지운 주제가 없는 것이다
 
 ## 2. 변경 내역 모으기
 ```bash

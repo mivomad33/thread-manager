@@ -2,26 +2,28 @@
 
 **한국어** | [English](DEVELOPMENT.en.md) · [README로 돌아가기](README.md)
 
-상위 폴더(`config.json`의 `projects_root`, 기본 `..`)에 있는 프로젝트들의 작업 내역을 보고 Threads 글 초안을 만들고, 승인한 것만 올립니다.
+상위 폴더(`config.json`의 `projects_root`, 기본 `..`)에 있는 프로젝트들의 작업 내역을 보고 Threads 글 초안을 만들고, 그중 하나를 골라 올립니다.
 
 ```
-예약 실행 → /threads-draft  : 새 커밋 수집 → 올릴지 판단 → drafts/에 초안 저장 (게시 안 함)
-사용자     → /threads-publish : 초안 검토 → 승인 / 수정 / 반려 → 승인한 것만 게시
+예약 실행 → /threads-auto    : /threads-draft로 초안 만들기 → 남은 초안 중 하나 골라 게시 → 알림
+사용자     → /threads-draft   : 초안만 만들기 (게시 안 함)
+사용자     → /threads-publish : 초안 직접 검토 → 승인 / 수정 / 반려 → 승인한 것만 게시. 자동 게시 뒤 지운 글의 이유 남기기
 ```
 
 ## 파일
 | 파일 | 내용 |
 |---|---|
-| `config.json` | 제외할 폴더, 한 번에 만들 초안 수 |
-| `style.md` | 올릴 것과 올리지 않을 것, 말투. 반려 이유가 여기 쌓입니다 |
+| `config.json` | 제외할 폴더, 한 번에 만들 초안 수, 자동 게시 켜기(`auto_publish`) |
+| `style.md` | 올릴 것과 올리지 않을 것, 말투. 반려하거나 게시 뒤 지운 이유가 여기 쌓입니다 |
 | `state.json` | 저장소별 마지막 확인 지점 (자동 생성) |
-| `drafts/` | 초안. `status`: draft → approved → posted, 또는 rejected |
+| `drafts/` | 아직 올리지 않은 초안. `status`: draft → approved → posted, 또는 rejected. 게시 뒤 지운 글은 deleted. 자동으로 올린 초안에는 `approved_by: auto`가 붙습니다 |
 | `drafts/images/` | 초안에 붙일 그림 (스크린샷, 저장소의 그림) |
+| `drafts/archive/` | 끝난 초안(posted, rejected, deleted)과 만든 지 14일이 지난 초안(expired)을 그림과 함께 옮겨 두는 곳. 지우지 않고 보관합니다 |
 | `backlog.json` | 상한(하루 3개)에 밀린 후보 주제. 다음 실행에서 다시 고르고, 14일이 지나면 버립니다 |
-| `posts.log` | 올린 글 기록 (JSON Lines) |
+| `posts.log` | 올린 글 기록 (JSON Lines). `approved_by`로 자동 게시와 직접 게시를 구분합니다 |
 | `.env` | Threads 토큰 (git에 넣지 않음) |
 | `scripts/collect.py` | 커밋 수집, `--save`로 확인 지점 저장 |
-| `scripts/threads.py` | 토큰 관리, 초안 검사, 이미지 업로드, 게시 |
+| `scripts/threads.py` | 토큰 관리, 초안 검사, 링크 확인, 이미지 업로드, 게시 |
 | `scripts/shot.mjs` | 웹 페이지 스크린샷 (Playwright). 처음에 `npm install` 필요 |
 
 `state.json`, `backlog.json`, `posts.log`, `drafts/` 안의 초안과 그림은 실행할 때 생기는 데이터라 git에 넣지 않습니다.
@@ -32,9 +34,9 @@
 개발 서버는 공개 저장소이고 로그인 없이 데모 데이터로 뜰 때만 씁니다. 찍은 그림은 Claude가 열어 보고
 개인 정보가 보이면 버립니다.
 
-Threads API는 공개 주소의 이미지만 받기 때문에, 게시를 승인하면 그림을 공개 저장소
+Threads API는 공개 주소의 이미지만 받기 때문에, 게시할 때 그림을 공개 저장소
 [mivomad33/threads-images](https://github.com/mivomad33/threads-images)에 올리고 그 주소로 게시합니다.
-반려한 초안의 그림은 올라가지 않습니다. 한 번 올린 그림은 글을 지워도 저장소에 공개로 남습니다.
+올리지 않은 초안의 그림은 올라가지 않습니다. 한 번 올린 그림은 글을 지워도 저장소에 공개로 남습니다.
 
 다른 계정으로 쓸 때는 이미지용 공개 저장소를 따로 만들고 `config.json`의 `images_repo`를 바꿉니다.
 
@@ -43,7 +45,8 @@ Threads API는 공개 주소의 이미지만 받기 때문에, 게시를 승인�
 처음 발견되면 최근 7일 커밋부터 봅니다. 빼고 싶은 폴더는 `config.json`의 `exclude`에 넣습니다.
 
 저장소마다 공개 여부(`gh`로 확인)를 함께 봅니다. 공개가 아닌 저장소에서 나온 초안은 저장소 링크와
-공개 전 세부 내용을 피해서 쓰고, 검토할 때 비공개 출처라고 따로 알립니다.
+공개 전 세부 내용을 피해서 씁니다. 자동 게시는 비공개 저장소에서 나온 초안도 올립니다.
+직접 검토할 때는 비공개 출처라고 따로 알립니다.
 
 ## Threads 토큰 발급 (처음 한 번)
 1. [Meta for Developers](https://developers.facebook.com/apps)에 Facebook 계정으로 로그인하고 개발자로 등록합니다 (휴대폰 인증)
@@ -61,14 +64,21 @@ Threads API는 공개 주소의 이미지만 받기 때문에, 게시를 승인�
 60일 넘게 게시하지 않았다면 5~6단계를 다시 합니다.
 단기 토큰(1시간)을 받았다면 `.env`에 `THREADS_APP_SECRET`을 넣고 `python3 scripts/threads.py exchange <단기토큰>`으로 바꿉니다.
 
-## 예약 실행
-Claude 데스크톱 앱의 예약 작업(Scheduled)으로 `threads-draft`를 주기적으로 돌립니다. 예: 평일 오전 10시(`0 10 * * 1-5`).
+## 예약 실행 (자동 게시)
+Claude 데스크톱 앱의 예약 작업(Scheduled)으로 `threads-auto`를 주기적으로 돌립니다. 예: 평일 오전 10시(`0 10 * * 1-5`).
 예약 작업의 지시문에는 아래 내용을 넣습니다.
 
-- `.claude/skills/threads-draft/SKILL.md`를 읽고 그대로 따릅니다. 명령은 이 저장소 폴더에서 실행합니다
-- 절대 게시하지 않습니다 (`threads.py post`를 실행하지 않고, `status`를 `approved`로 바꾸지 않습니다)
+- `.claude/skills/threads-auto/SKILL.md`를 읽고 그대로 따릅니다. 명령은 이 저장소 폴더에서 실행합니다
+- 사용자가 자동 게시를 미리 허락했고, 게시 전에 확인하지 않습니다
+- 한 번에 최대 1개만 올립니다. 오늘(한국 시간) 이미 올린 글이 있거나 확인 항목에 걸리면 올리지 않습니다
+- `config.json`의 `auto_publish`가 `true`가 아니면 초안만 만듭니다
+- 게시가 실패하면 다시 시도하거나 다른 초안을 올리지 않습니다
 - 대상 저장소의 파일은 읽기만 합니다
-- 끝나면 살펴본 커밋 수, 새 초안, 올리지 않기로 한 주제를 짧게 보고합니다
+- 게시하면 바로 PushNotification으로 게시 주소를 알리고, 끝나면 살펴본 커밋 수, 새 초안, 올린 글, 올리지 않기로 한 주제를 짧게 보고합니다
+
+올라간 글은 Threads에서 확인합니다. Threads 글은 올린 뒤 몇 분 안에만 고칠 수 있으므로, 알림을 받으면 바로 보는 것이 좋습니다.
+문제가 있으면 Threads 앱에서 지우고, Claude에게 지운 이유를 알려 줍니다(`/threads-publish`). 이유는 `style.md`에 남아 다음 선택에 반영됩니다.
+자동 게시를 멈추려면 `auto_publish`를 `false`로 바꾸거나 예약 작업을 끕니다.
 
 예약 작업은 앱이 켜져 있을 때 실행됩니다. 앱이 꺼져 있었다면 다음에 켤 때 실행됩니다.
 
@@ -77,6 +87,7 @@ Claude 데스크톱 앱의 예약 작업(Scheduled)으로 `threads-draft`를 주
 python3 scripts/collect.py
 python3 scripts/collect.py --save
 python3 scripts/threads.py check drafts/<파일>.md
+python3 scripts/threads.py archive
 python3 scripts/threads.py quota
 node scripts/shot.mjs <url> drafts/images/<이름>.png --mobile
 ```

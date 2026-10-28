@@ -7,7 +7,8 @@
   python3 scripts/threads.py exchange <단기토큰>  # 단기 토큰 → 60일 장기 토큰, .env에 저장
   python3 scripts/threads.py refresh             # 장기 토큰 갱신 (발급 후 24시간 이상 지나야 함)
   python3 scripts/threads.py check <초안.md>      # 초안 형식과 글자 수만 검사
-  python3 scripts/threads.py post <초안.md>       # 승인된(status: approved) 초안을 올림
+  python3 scripts/threads.py post <초안.md>       # 승인된(status: approved) 초안을 올림 (본문 링크 확인 후)
+  python3 scripts/threads.py archive             # 끝난 초안과 오래된 초안을 그림과 함께 drafts/archive/로 옮김
 
 .env 항목: THREADS_ACCESS_TOKEN, THREADS_APP_SECRET, THREADS_TOKEN_ISSUED_AT
 
@@ -16,6 +17,7 @@
 """
 import base64
 import json
+import re
 import subprocess
 import sys
 import time
@@ -30,6 +32,7 @@ ROOT = Path(__file__).resolve().parent.parent
 ENV = ROOT / ".env"
 POSTS_LOG = ROOT / "posts.log"
 IMAGES_DIR = ROOT / "drafts" / "images"
+ARCHIVE_DIR = ROOT / "drafts" / "archive"
 CONFIG = ROOT / "config.json"
 API = "https://graph.threads.com"
 VERSION = "v1.0"
@@ -42,6 +45,8 @@ IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg")
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 MAX_IMAGES = 20
 STATUS_TIMEOUT_SECONDS = 300
+DONE_STATUSES = ("posted", "rejected", "deleted")
+URL_PATTERN = re.compile(r"https?://[^\s<>()]+")
 
 
 # ---------- .env ----------
@@ -189,6 +194,50 @@ def check(path):
     return meta, parts
 
 
+def check_links(parts):
+    """본문 링크가 열리는지 확인한다. 봇을 막는 사이트(403·429)는 열리는 것으로 본다."""
+    bad = []
+    for url in sorted({u.rstrip(".,!?") for p in parts for u in URL_PATTERN.findall(p)}):
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 thread-manager"})
+        try:
+            urllib.request.urlopen(req, timeout=20).close()
+        except urllib.error.HTTPError as e:
+            if e.code not in (403, 429):
+                bad.append(f"{url}: {e.code}")
+        except (urllib.error.URLError, TimeoutError) as e:
+            bad.append(f"{url}: {e}")
+    if bad:
+        sys.exit(f"열리지 않는 링크가 있습니다: {bad}")
+
+
+def archive():
+    """끝난 초안(posted·rejected·deleted)과, 만든 지 backlog_max_age_days일이 지난 초안(draft → expired)을
+    그림과 함께 drafts/archive/로 옮긴다. drafts/에는 아직 올릴 수 있는 초안만 남는다."""
+    max_age = json.loads(CONFIG.read_text()).get("backlog_max_age_days", 14)
+    now = datetime.now(timezone.utc)
+    moved = []
+    for path in sorted((ROOT / "drafts").glob("*.md")):
+        meta, _ = parse_draft(path)
+        status = meta.get("status")
+        if status == "draft" and meta.get("created"):
+            if (now - datetime.fromisoformat(meta["created"])).days >= max_age:
+                set_meta(path, {"status": "expired"})
+                status = "expired"
+        if status not in (*DONE_STATUSES, "expired"):
+            continue
+        dest = ARCHIVE_DIR / path.name
+        if dest.exists():
+            print(f"건너뜀 (보관 폴더에 같은 이름이 있음): {path.name}")
+            continue
+        (ARCHIVE_DIR / "images").mkdir(parents=True, exist_ok=True)
+        for img in draft_images(meta):
+            if img.exists():
+                img.rename(ARCHIVE_DIR / "images" / img.name)
+        path.rename(dest)
+        moved.append(f"{path.name} ({status})")
+    print(f"보관 폴더로 옮김 {len(moved)}개" + "".join(f"\n  {m}" for m in moved))
+
+
 # ---------- 이미지 업로드 ----------
 
 def upload_image(local, dest):
@@ -265,6 +314,7 @@ def post(path):
     meta, parts = check(path)
     if meta.get("status") != "approved":
         sys.exit(f"{path}: status가 approved가 아닙니다 ({meta.get('status')}). 승인된 초안만 올립니다.")
+    check_links(parts)
     refresh_if_old()
 
     image_urls = meta.get("image_urls", "").split(",") if meta.get("image_urls") else []
@@ -282,7 +332,8 @@ def post(path):
     set_meta(path, {"status": "posted", "posted_at": now, "post_ids": ",".join(ids), "permalink": permalink})
     with POSTS_LOG.open("a") as f:
         f.write(json.dumps({"draft": Path(path).name, "posted_at": now, "ids": ids, "permalink": permalink,
-                            "repos": meta.get("repos", ""), "images": image_urls, "text": parts[0]},
+                            "repos": meta.get("repos", ""), "approved_by": meta.get("approved_by", "user"),
+                            "images": image_urls, "text": parts[0]},
                            ensure_ascii=False) + "\n")
     print(f"게시 완료: {permalink or ids[0]}")
 
@@ -304,6 +355,8 @@ def main():
         check(args[0])
     elif cmd == "post" and args:
         post(args[0])
+    elif cmd == "archive":
+        archive()
     else:
         sys.exit(__doc__)
 

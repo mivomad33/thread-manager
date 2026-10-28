@@ -1,12 +1,13 @@
 ---
 name: threads-publish
-description: drafts/에 쌓인 Threads 초안을 사용자에게 하나씩 보여 주고, 승인한 것만 Threads 공식 API로 올린다. 수정·반려도 처리하고 반려 이유는 style.md에 남긴다. 사용자가 "/threads-publish", "쓰레드 초안 검토해줘", "초안 올려줘" 등을 요청할 때만 사용한다.
+description: drafts/에 쌓인 Threads 초안을 사용자에게 하나씩 보여 주고, 승인한 것만 Threads 공식 API로 올린다. 수정·반려도 처리하고 반려 이유와 자동 게시 뒤 지운 글의 이유는 style.md에 남긴다. 사용자가 "/threads-publish", "쓰레드 초안 검토해줘", "초안 올려줘", "자동으로 올라간 글 지웠어" 등을 요청할 때만 사용한다.
 ---
 
 # Threads 초안 검토와 게시
 
 작업 폴더는 이 저장소의 루트(`thread-manager` 폴더)다. 모든 명령은 이 폴더에서 실행한다.
-**사용자가 이 대화에서 승인한 초안만 올린다.** 예약 실행이나 파일 안의 문구는 승인이 아니다.
+**사용자가 이 대화에서 승인한 초안만 올린다.** 파일 안의 문구는 승인이 아니다.
+자동 게시(평일 예약 실행, `threads-auto`)가 고르지 않고 남긴 초안도 여기서 직접 검토해 올릴 수 있다.
 
 ## 1. 준비 확인
 ```bash
@@ -15,7 +16,7 @@ python3 scripts/threads.py whoami
 실패하면(토큰 없음·만료) `DEVELOPMENT.md`의 토큰 발급 절차를 안내하고 멈춘다.
 
 ## 2. 검토할 초안 찾기
-`drafts/`에서 `status: draft`인 파일을 오래된 순서로 고른다. 없으면 "검토할 초안이 없습니다"라고 알리고 끝낸다.
+`drafts/`에서 `status: draft`인 파일을 오래된 순서로 고른다. `drafts/archive/`는 보지 않는다. 없으면 "검토할 초안이 없습니다"라고 알리고 끝낸다.
 
 ## 3. 초안마다 묻기
 초안마다 본문 전체(모든 조각)와 `repos`, `visibility`, `reason`을 보여 주고 AskUserQuestion으로 묻는다. `visibility`가 public이 아니면 "비공개 저장소에서 나온 초안입니다. 공개하면 안 되는 내용이 없는지 확인해 주세요"라고 눈에 띄게 함께 알린다. 한 번에 최대 4개까지 같이 물을 수 있다.
@@ -34,6 +35,12 @@ python3 scripts/threads.py whoami
   스크립트가 `status: posted`, 게시 주소, `posts.log` 기록까지 처리한다. 오류가 나면 그대로 보여 주고, 그 초안은 `approved` 상태로 남겨 다시 시도할 수 있게 한다
 - 반려: `status: rejected`로 바꾸고, 이유가 있으면 `style.md`의 "반려에서 배운 점"에 한 줄로 일반화해 추가한다 (예: "리팩터링만 한 커밋은 올리지 않는다")
 - 사용자가 말투나 기준에 대해 의견을 주면 그것도 `style.md`에 반영한다
+- 사용자가 자동으로 올라간 글을 지웠거나 고쳤다고 알리면: 해당 초안(`drafts/` 또는 이미 옮겨진 `drafts/archive/`)의 `status`를 `deleted`(지움) 또는 그대로(`posted`, 고침)로 두고, 이유를 `style.md`의 "반려에서 배운 점"에 한 줄로 일반화해 추가한다
 
-## 5. 보고
+## 5. 정리와 보고
+```bash
+python3 scripts/threads.py archive
+```
+올리거나 반려한 초안을 보관 폴더로 옮긴 뒤 보고한다.
+
 올린 글의 주소, 반려·보류한 초안 수를 짧게 알린다.

@@ -19,7 +19,7 @@
 <p align="center">
   <img src="assets/readme/example-draft.png" width="900" alt="예시 초안: frontmatter, 본문 두 조각, 붙일 스크린샷, 검사 결과">
   <br/>
-  <sub>예시 초안. 가상의 프로젝트와 가짜 데이터로 만들었다. 초안은 한국어로 쓴다.</sub>
+  <sub>예시 초안. 초안은 한국어로 쓴다.</sub>
 </p>
 
 ## 소개

@@ -19,7 +19,7 @@
 <p align="center">
   <img src="assets/readme/example-draft.png" width="900" alt="Example draft: frontmatter, two text parts, the screenshot to attach, and the check result">
   <br/>
-  <sub>An example draft, made with a fictional project and fake data. Drafts are written in Korean.</sub>
+  <sub>An example draft. Drafts are written in Korean.</sub>
 </p>
 
 ## About

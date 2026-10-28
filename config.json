@@ -1,0 +1,13 @@
+{
+  "projects_root": "..",
+  "exclude": [
+    "archive",
+    "thread-manager"
+  ],
+  "first_run_since": "7 days ago",
+  "max_commits_per_repo": 60,
+  "max_drafts_per_run": 3,
+  "backlog_max_age_days": 14,
+  "images_repo": "mivomad33/threads-images",
+  "threads_username": "mivomad33"
+}

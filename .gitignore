@@ -1,0 +1,19 @@
+# 비밀값
+.env
+
+# 실행할 때 생기는 데이터 (비공개 저장소 이름·커밋, 공개 전 초안이 들어 있다)
+state.json
+backlog.json
+.collect_seen.json
+posts.log
+drafts/*
+!drafts/.gitkeep
+drafts/images/*
+!drafts/images/
+!drafts/images/.gitkeep
+
+# 도구
+node_modules/
+__pycache__/
+/.serena/
+.DS_Store

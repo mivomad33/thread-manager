@@ -66,7 +66,7 @@ def write_env(updates):
 def token():
     t = read_env().get("THREADS_ACCESS_TOKEN")
     if not t:
-        sys.exit("THREADS_ACCESS_TOKEN이 .env에 없습니다. README의 토큰 발급 절차를 먼저 진행하세요.")
+        sys.exit("THREADS_ACCESS_TOKEN이 .env에 없습니다. DEVELOPMENT.md의 토큰 발급 절차를 먼저 진행하세요.")
     return t
 
 

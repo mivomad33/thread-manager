@@ -12,7 +12,7 @@ description: drafts/에 쌓인 Threads 초안을 사용자에게 하나씩 보�
 ```bash
 python3 scripts/threads.py whoami
 ```
-실패하면(토큰 없음·만료) `README.md`의 토큰 발급 절차를 안내하고 멈춘다.
+실패하면(토큰 없음·만료) `DEVELOPMENT.md`의 토큰 발급 절차를 안내하고 멈춘다.
 
 ## 2. 검토할 초안 찾기
 `drafts/`에서 `status: draft`인 파일을 오래된 순서로 고른다. 없으면 "검토할 초안이 없습니다"라고 알리고 끝낸다.

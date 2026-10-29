@@ -17,3 +17,4 @@ node_modules/
 __pycache__/
 /.serena/
 .DS_Store
+.claude/settings.local.json

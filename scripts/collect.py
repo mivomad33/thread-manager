@@ -77,7 +77,7 @@ def collect_repo(repo, entry, cfg):
     for record in out.split("\x1e"):
         if "\x1f" not in record:
             continue
-        h, date, subject, body = record.strip().split("\x1f", 3)
+        h, date, subject, body = record.strip("\n").split("\x1f", 3)  # strip()은 \x1f도 공백으로 지운다
         commits.append({
             "hash": h[:10],
             "date": date,

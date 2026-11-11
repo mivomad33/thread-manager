@@ -68,7 +68,7 @@ flowchart LR
 
 - **Auto-publishing assumes you check afterwards.** Since no one reviews posts beforehand, at most one goes up per day, and the post link is sent the moment it is published. Threads posts can be edited only for a few minutes after posting, so after that the fix is to delete. Set `auto_publish` in `config.json` to `false` to only write drafts.
 - **Drafts are rechecked before posting.** When picking, the facts in the text are checked against the commits, images are opened again, and the post is compared with what was already published. A draft that fails any check is not posted.
-- **Private repositories are treated differently.** Drafts from non-public repositories leave out repository links and unreleased details, and never use dev server screenshots.
+- **Private repositories are treated differently.** Work in private repositories can become posts, but repository links, core algorithms and solutions, and other people's information such as clients and partners stay out of the text and images.
 - **Drafts are checked.** Missing fields, strings that look like internal paths or tokens, length (emoji counted in bytes), image format and size, and whether links in the text open are checked before posting.
 - **Images become public only when posted.** Images of drafts that are not posted are never uploaded anywhere. Uploaded images stay in the public repository even if the post is deleted.
 - **Runtime data stays out of git.** The token, per-repository checkpoints, backlog, and drafts are all ignored.

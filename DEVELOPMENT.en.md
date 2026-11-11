@@ -44,8 +44,8 @@ To use another account, create your own public image repository and change `imag
 Every run finds all git repositories directly under `projects_root`. New projects are included automatically,
 starting from the last 7 days of commits when first seen. Add folders to skip to `exclude` in `config.json`.
 
-Each repository's visibility is checked with `gh`. Drafts from non-public repositories leave out repository links
-and unreleased details. Auto-publishing posts drafts from private repositories too.
+Each repository's visibility is checked with `gh`. Drafts from non-public repositories leave out repository links,
+core algorithms and solutions, and other people's information such as clients and partners. Auto-publishing posts drafts from private repositories too.
 When you review drafts yourself, they are flagged as coming from a private source.
 
 ## Getting a Threads token (once)

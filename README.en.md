@@ -26,14 +26,14 @@
 
 You build something every day, but telling anyone about it keeps slipping. The commit history is full of stories, yet picking one, shaping it into a post, and taking screenshots all take time.
 
-thread-manager takes that work off your hands. Every weekday at 10 AM, Claude reads new commits across your project folder, picks topics worth sharing, and writes drafts with images attached. It then picks the best one, publishes it through the official Threads API, and notifies you right away. You only step in to delete a post when something is wrong. Reviewing and posting drafts yourself still works too.
+thread-manager takes that work off your hands. Every weekday at 10 AM, Claude reads new commits across every repository in your GitHub account, picks topics worth sharing, and writes drafts with images attached. It then picks the best one, publishes it through the official Threads API, and notifies you right away. You only step in to delete a post when something is wrong. Reviewing and posting drafts yourself still works too.
 
 ## How it works
 
 ```mermaid
 flowchart LR
   S["Scheduled task<br/>weekdays 10 AM"] --> B["collect.py<br/>new commits"]
-  A["Project folder<br/>git repositories"] --> B
+  A["GitHub account<br/>public and private repos"] --> B
   B --> C["threads-draft<br/>pick topics"]
   K["backlog.json<br/>pending topics"] -.-> C
   C -.-> K
@@ -48,14 +48,14 @@ flowchart LR
   H --> N["Notification<br/>post link"]
 ```
 
-1. **Collect**: `collect.py` finds every git repository under the project folder and gathers commits since the last check, along with each repository's visibility.
+1. **Collect**: `collect.py` finds and fetches every public and private repository in your GitHub account, and gathers commits on the default branch since the last check, along with each repository's visibility.
 2. **Draft**: the `threads-draft` skill groups commits into topics and picks from them together with pending topics, using the rules in `style.md`. Topics with a UI get a screenshot of the deployed site. This step does not post.
 3. **Auto-publish**: the `threads-auto` skill rechecks the drafts not yet posted, picks the best one, uploads its images to the public repository, and posts it to Threads. The post link arrives as a notification right away.
 4. **Check afterwards**: if a post has a problem, delete it on Threads and say why. The reason is added to `style.md`. Drafts that were not picked can still be reviewed and posted with `threads-publish`.
 
 ## Features
 
-- **Repository discovery**: no fixed list. The project folder is scanned on every run, so new projects are picked up automatically.
+- **Repository discovery**: no fixed list. The repository list is fetched from your GitHub account on every run, so new repositories are picked up automatically. Only work merged into the default branch is read.
 - **Topic selection**: ranks launches, new features, solved problems, and progress, and writes up to 3 drafts per run. Config changes and maintenance work are skipped.
 - **Backlog**: topics pushed out by the cap are kept and reconsidered on the next run, then dropped after 14 days.
 - **Images**: captures the deployed site or demo at desktop or phone size and reuses images already in the repository. Claude opens each image before deciding to use it.
@@ -71,27 +71,26 @@ flowchart LR
 - **Private repositories are treated differently.** Work in private repositories can become posts, but repository links, core algorithms and solutions, and other people's information such as clients and partners stay out of the text and images.
 - **Drafts are checked.** Missing fields, strings that look like internal paths or tokens, length (emoji counted in bytes), image format and size, and whether links in the text open are checked before posting.
 - **Images become public only when posted.** Images of drafts that are not posted are never uploaded anywhere. Uploaded images stay in the public repository even if the post is deleted.
-- **Runtime data stays out of git.** The token, per-repository checkpoints, backlog, and drafts are all ignored.
+- **Runtime data stays out of git.** The token, per-repository checkpoints, backlog, drafts, and fetched repository copies (`repos/`) are all ignored.
 
 ## Tech stack
 
 - **Runtime**: Claude Code (project skills, scheduled tasks in the desktop app)
 - **Scripts**: Python 3 standard library (`collect.py`, `threads.py`), Node.js with Playwright (`shot.mjs`)
-- **External services**: Threads API, GitHub CLI (`gh`, for repository visibility and image uploads)
+- **External services**: Threads API, GitHub CLI (`gh`, for the repository list, visibility, and image uploads)
 
 ## Quick start
 
 Requirements: Claude Code, Python 3, Node.js, a signed-in `gh`, and a public Threads account.
 
-1. Clone it inside the folder that holds your projects. By default, the parent folder of this repository is treated as the project folder.
+1. Clone it into any folder.
    ```bash
-   cd <projects folder>
    git clone https://github.com/mivomad33/thread-manager.git
    cd thread-manager
    npm install
    npx playwright install chromium
    ```
-2. In `config.json`, set `images_repo` to your own public image repository and `threads_username` to your account.
+2. In `config.json`, set `github_owner` to your GitHub account, `images_repo` to your own public image repository, and `threads_username` to your Threads account. Add repositories you do not want collected to `exclude`.
 3. Get a Threads token and put it in `.env`. The steps are in the [development guide](DEVELOPMENT.en.md#getting-a-threads-token-once).
 4. Check the token.
    ```bash
@@ -118,7 +117,8 @@ thread-manager/
 │   ├── threads.py          # draft checks, image upload, posting, token
 │   └── shot.mjs            # web page screenshots
 ├── drafts/                 # pending drafts and images, finished ones in archive/ (not committed)
-├── config.json             # project folder, exclusions, limits, auto-publish
+├── repos/                  # repository copies fetched when collecting (not committed)
+├── config.json             # GitHub account, exclusions, limits, auto-publish
 └── style.md                # selection rules and tone
 ```
 

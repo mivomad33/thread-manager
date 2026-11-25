@@ -2,7 +2,7 @@
 
 [한국어](DEVELOPMENT.md) | **English** · [Back to README](README.en.md)
 
-Reads the work history of the projects in the parent folder (`projects_root` in `config.json`, `..` by default), writes Threads post drafts, and picks one of them to post.
+Reads the work history of the repositories in a GitHub account (`github_owner` in `config.json`), writes Threads post drafts, and picks one of them to post.
 
 ```
 scheduled run → /threads-auto    : write drafts with /threads-draft → pick one remaining draft and post → notify
@@ -13,7 +13,7 @@ you           → /threads-publish : review drafts yourself → approve / edit /
 ## Files
 | File | Contents |
 |---|---|
-| `config.json` | Folders to exclude, number of drafts per run, auto-publish switch (`auto_publish`) |
+| `config.json` | GitHub account, repositories to exclude, number of drafts per run, auto-publish switch (`auto_publish`) |
 | `style.md` | What to post and what not to, tone. Reasons for rejecting or deleting posts accumulate here |
 | `state.json` | Last checked commit per repository (generated) |
 | `drafts/` | Drafts not yet posted. `status`: draft → approved → posted, or rejected. A post deleted after publishing becomes deleted. Auto-posted drafts get `approved_by: auto` |
@@ -21,12 +21,13 @@ you           → /threads-publish : review drafts yourself → approve / edit /
 | `drafts/archive/` | Finished drafts (posted, rejected, deleted) and drafts older than 14 days (expired), moved here with their images. Kept, not deleted |
 | `backlog.json` | Candidate topics pushed out by the cap (3 per run). Reconsidered on the next run, dropped after 14 days |
 | `posts.log` | Posted entries (JSON Lines). `approved_by` tells automatic and manual posts apart |
+| `repos/` | Repository copies fetched when collecting. The default branch is checked out and only read |
 | `.env` | Threads token (not committed) |
 | `scripts/collect.py` | Collects commits; `--save` stores the checkpoint |
 | `scripts/threads.py` | Token management, draft checks, link checks, image upload, posting |
 | `scripts/shot.mjs` | Web page screenshots (Playwright). Run `npm install` first |
 
-`state.json`, `backlog.json`, `posts.log`, and the drafts and images inside `drafts/` are runtime data and are not committed,
+`state.json`, `backlog.json`, `posts.log`, `repos/`, and the drafts and images inside `drafts/` are runtime data and are not committed,
 because they contain private repository names and commits and drafts that are not public yet.
 
 ## Images
@@ -41,8 +42,14 @@ Images of drafts that are not posted are never uploaded. Uploaded images stay pu
 To use another account, create your own public image repository and change `images_repo` in `config.json`.
 
 ## Target repositories
-Every run finds all git repositories directly under `projects_root`. New projects are included automatically,
-starting from the last 7 days of commits when first seen. Add folders to skip to `exclude` in `config.json`.
+Every run uses `gh repo list` to find all public and private repositories of the `github_owner` account. Archived repositories, forks,
+and empty repositories are skipped. Add repositories to skip to `exclude` in `config.json`. New repositories are included automatically,
+starting from the last 7 days of commits when first seen.
+
+Each repository is copied to `repos/<name>` (cloned once, fetched after that), and only commits on the default branch are read.
+Branches that are not merged yet and commits that are not pushed do not become posts. The copies are used to check commit contents and documents
+and to take images from the repository. They are reset to the default branch on every collection, so they are never edited.
+The first fetch of a repository takes a few minutes, and the copies use as much disk space as the repositories.
 
 Each repository's visibility is checked with `gh`. Drafts from non-public repositories leave out repository links,
 core algorithms and solutions, and other people's information such as clients and partners. Auto-publishing posts drafts from private repositories too.

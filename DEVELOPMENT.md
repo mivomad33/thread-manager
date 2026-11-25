@@ -2,7 +2,7 @@
 
 **한국어** | [English](DEVELOPMENT.en.md) · [README로 돌아가기](README.md)
 
-상위 폴더(`config.json`의 `projects_root`, 기본 `..`)에 있는 프로젝트들의 작업 내역을 보고 Threads 글 초안을 만들고, 그중 하나를 골라 올립니다.
+GitHub 계정(`config.json`의 `github_owner`)에 있는 저장소들의 작업 내역을 보고 Threads 글 초안을 만들고, 그중 하나를 골라 올립니다.
 
 ```
 예약 실행 → /threads-auto    : /threads-draft로 초안 만들기 → 남은 초안 중 하나 골라 게시 → 알림
@@ -13,7 +13,7 @@
 ## 파일
 | 파일 | 내용 |
 |---|---|
-| `config.json` | 제외할 폴더, 한 번에 만들 초안 수, 자동 게시 켜기(`auto_publish`) |
+| `config.json` | GitHub 계정, 제외할 저장소, 한 번에 만들 초안 수, 자동 게시 켜기(`auto_publish`) |
 | `style.md` | 올릴 것과 올리지 않을 것, 말투. 반려하거나 게시 뒤 지운 이유가 여기 쌓입니다 |
 | `state.json` | 저장소별 마지막 확인 지점 (자동 생성) |
 | `drafts/` | 아직 올리지 않은 초안. `status`: draft → approved → posted, 또는 rejected. 게시 뒤 지운 글은 deleted. 자동으로 올린 초안에는 `approved_by: auto`가 붙습니다 |
@@ -21,12 +21,13 @@
 | `drafts/archive/` | 끝난 초안(posted, rejected, deleted)과 만든 지 14일이 지난 초안(expired)을 그림과 함께 옮겨 두는 곳. 지우지 않고 보관합니다 |
 | `backlog.json` | 상한(하루 3개)에 밀린 후보 주제. 다음 실행에서 다시 고르고, 14일이 지나면 버립니다 |
 | `posts.log` | 올린 글 기록 (JSON Lines). `approved_by`로 자동 게시와 직접 게시를 구분합니다 |
+| `repos/` | 수집할 때 받아 오는 저장소 사본. 기본 브랜치를 펼쳐 두고 읽기만 합니다 |
 | `.env` | Threads 토큰 (git에 넣지 않음) |
 | `scripts/collect.py` | 커밋 수집, `--save`로 확인 지점 저장 |
 | `scripts/threads.py` | 토큰 관리, 초안 검사, 링크 확인, 이미지 업로드, 게시 |
 | `scripts/shot.mjs` | 웹 페이지 스크린샷 (Playwright). 처음에 `npm install` 필요 |
 
-`state.json`, `backlog.json`, `posts.log`, `drafts/` 안의 초안과 그림은 실행할 때 생기는 데이터라 git에 넣지 않습니다.
+`state.json`, `backlog.json`, `posts.log`, `repos/`, `drafts/` 안의 초안과 그림은 실행할 때 생기는 데이터라 git에 넣지 않습니다.
 비공개 저장소 이름과 커밋, 아직 공개하지 않은 초안이 들어 있기 때문입니다.
 
 ## 그림
@@ -41,8 +42,14 @@ Threads API는 공개 주소의 이미지만 받기 때문에, 게시할 때 그
 다른 계정으로 쓸 때는 이미지용 공개 저장소를 따로 만들고 `config.json`의 `images_repo`를 바꿉니다.
 
 ## 대상 저장소
-실행할 때마다 `projects_root` 바로 아래의 git 저장소를 모두 찾습니다. 새 프로젝트는 자동으로 포함되고,
-처음 발견되면 최근 7일 커밋부터 봅니다. 빼고 싶은 폴더는 `config.json`의 `exclude`에 넣습니다.
+실행할 때마다 `gh repo list`로 `github_owner` 계정의 공개·비공개 저장소를 모두 찾습니다. 보관(archived)된 저장소, fork,
+빈 저장소는 뺍니다. 빼고 싶은 저장소는 `config.json`의 `exclude`에 넣습니다. 새 저장소는 자동으로 포함되고,
+처음 발견되면 최근 7일 커밋부터 봅니다.
+
+저장소마다 `repos/<이름>`에 사본을 받아 두고(처음 한 번 clone, 그 뒤로는 fetch), 기본 브랜치의 커밋만 봅니다.
+그래서 아직 머지하지 않은 브랜치나 push하지 않은 커밋은 글이 되지 않습니다. 사본은 커밋 내용과 문서를 확인하고
+저장소의 그림을 가져오는 데 씁니다. 수집할 때마다 기본 브랜치로 덮어쓰므로 고치지 않습니다.
+저장소를 처음 받을 때는 몇 분 걸리고, 사본은 저장소 크기만큼 디스크를 씁니다.
 
 저장소마다 공개 여부(`gh`로 확인)를 함께 봅니다. 공개가 아닌 저장소에서 나온 초안은 저장소 링크,
 핵심 알고리즘·해결 방식, 고객·거래처 같은 남의 정보를 빼고 씁니다. 자동 게시는 비공개 저장소에서 나온 초안도 올립니다.

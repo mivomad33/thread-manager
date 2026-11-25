@@ -1,8 +1,10 @@
 {
-  "projects_root": "..",
+  "github_owner": "mivomad33",
   "exclude": [
-    "archive",
-    "thread-manager"
+    "thread-manager",
+    "threads-images",
+    "claude-config",
+    "life-location"
   ],
   "first_run_since": "7 days ago",
   "max_commits_per_repo": 60,

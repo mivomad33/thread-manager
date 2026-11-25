@@ -5,6 +5,7 @@
 state.json
 backlog.json
 .collect_seen.json
+/repos/
 posts.log
 drafts/*
 !drafts/.gitkeep

@@ -1,6 +1,6 @@
 ---
 name: threads-draft
-description: 프로젝트 폴더(config.json의 projects_root)의 git 저장소에서 지난 확인 이후 커밋을 모아, 밀려 있던 후보 주제와 함께 Threads에 올릴 만한 것을 골라 초안을 drafts/에 쓴다. 게시는 하지 않는다. 예약 작업이 주기적으로 실행하거나, 사용자가 "/threads-draft", "쓰레드 초안 만들어줘" 등을 요청할 때 사용한다.
+description: GitHub 계정(config.json의 github_owner)의 저장소에서 기본 브랜치의 지난 확인 이후 커밋을 모아, 밀려 있던 후보 주제와 함께 Threads에 올릴 만한 것을 골라 초안을 drafts/에 쓴다. 게시는 하지 않는다. 예약 작업이 주기적으로 실행하거나, 사용자가 "/threads-draft", "쓰레드 초안 만들어줘" 등을 요청할 때 사용한다.
 ---
 
 # Threads 초안 만들기
@@ -16,7 +16,7 @@ python3 scripts/threads.py archive
 ```
 
 - `style.md`: 올릴 것과 올리지 않을 것, 말투, 반려에서 배운 점
-- `config.json`: 제외할 폴더(`exclude`), 한 번에 만들 초안 수 상한(`max_drafts_per_run`). 대상 저장소는 실행할 때마다 `projects_root` 아래에서 새로 찾는다
+- `config.json`: 제외할 저장소(`exclude`), 한 번에 만들 초안 수 상한(`max_drafts_per_run`). 대상 저장소는 실행할 때마다 GitHub 계정(`github_owner`)에서 새로 찾는다 (보관된 저장소와 fork는 뺀다)
 - `posts.log`(있으면): 이미 올린 글. 같은 이야기를 반복하지 않는다
 - `backlog.json`(없으면 빈 목록): 지난 실행에서 상한에 밀려 초안으로 쓰지 못한 후보 주제 (형식은 4-2단계)
 - `drafts/`의 초안(아직 올리지 않은 `draft`, `approved`): 겹치지 않게 한다
@@ -32,8 +32,8 @@ python3 scripts/collect.py
 ```
 - 출력의 `repos`가 비어 있으면 새 커밋이 없는 것이다. 이때도 `backlog.json`에 후보가 있으면 3단계로 가서 후보만으로 고른다. 후보도 없으면 5단계(확인 지점 저장)로 건너뛴다
 - `errors`가 있으면 마지막 보고에 적는다
-- 저장소마다 `visibility`(public / private / internal / no-remote / unknown)와 `repo_url`(공개일 때만)이 붙어 있다
-- 커밋 메시지만으로 내용이 불분명하면 해당 저장소에서 `git show <hash>`나 파일을 직접 읽어 확인한다. 저장소 파일은 읽기만 하고 고치지 않는다
+- 저장소마다 `visibility`(public / private / internal / unknown), `repo_url`(공개일 때만), 기본 브랜치(`branch`), clone 위치(`path`)가 붙어 있다. 커밋은 기본 브랜치에 들어간 것만 나온다
+- 커밋 메시지만으로 내용이 불분명하면 `path`의 clone에서 `git show <hash>`나 파일을 직접 읽어 확인한다. clone은 기본 브랜치를 펼쳐 둔 사본이다. 파일은 읽기만 하고 고치지 않는다
 
 ## 3. 올릴지 판단하기
 - 먼저 `backlog.json`에서 `first_seen`이 `backlog_max_age_days`일보다 오래된 후보를 지운다

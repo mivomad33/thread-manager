@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""projects_root 아래의 git 저장소(exclude 제외)에서 마지막 확인 이후의 커밋을 모아 JSON으로 출력한다.
+"""GitHub 계정(github_owner)의 저장소(보관·fork·exclude 제외)에서 마지막 확인 이후의 커밋을 모아 JSON으로 출력한다.
+
+저장소 목록은 실행할 때마다 gh로 새로 받는다. 저장소마다 repos/<이름>에 clone을 두고
+기본 브랜치를 받아 와 그 브랜치의 커밋만 본다. clone은 읽기 전용 사본이다.
 
 사용법:
   python3 scripts/collect.py          # 새 커밋 출력 (상태는 바꾸지 않음)
-  python3 scripts/collect.py --save   # 각 저장소의 현재 HEAD를 확인 지점으로 저장
+  python3 scripts/collect.py --save   # 직전 수집 때 본 기본 브랜치 끝을 확인 지점으로 저장
 """
 import json
-import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -16,7 +18,8 @@ ROOT = Path(__file__).resolve().parent.parent
 CONFIG = ROOT / "config.json"
 STATE = ROOT / "state.json"
 
-SEEN = ROOT / ".collect_seen.json"  # 수집 때 본 HEAD. --save가 이것을 저장해 그 사이 커밋을 놓치지 않는다
+SEEN = ROOT / ".collect_seen.json"  # 수집 때 본 브랜치 끝. --save가 이것을 저장해 그 사이 커밋을 놓치지 않는다
+CLONES = ROOT / "repos"
 
 DOC_SUFFIXES = (".md", ".mdx", ".txt")
 MAX_DOC_DIFF_CHARS = 12000
@@ -34,43 +37,57 @@ def load_json(path, default):
     return json.loads(path.read_text()) if path.exists() else default
 
 
-def discover(root, exclude):
-    """projects_root 바로 아래의 git 저장소 이름들. 실행할 때마다 새로 찾는다."""
-    return sorted(p.name for p in root.iterdir()
-                  if p.is_dir() and (p / ".git").exists() and p.name not in exclude)
+def discover(owner, exclude):
+    """owner의 저장소 목록. 보관된 저장소, fork, 빈 저장소, exclude는 뺀다. 실행할 때마다 새로 받는다."""
+    r = subprocess.run(["gh", "repo", "list", owner, "--limit", "1000", "--no-archived", "--source",
+                        "--json", "name,visibility,defaultBranchRef,isEmpty,url"], capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f"gh repo list 실패: {r.stderr.strip()}")
+    listed = json.loads(r.stdout)
+    if not listed:
+        raise RuntimeError(f"{owner} 계정에서 저장소를 찾지 못했습니다. config.json의 github_owner를 확인하세요.")
+    repos = []
+    for x in listed:
+        branch = (x.get("defaultBranchRef") or {}).get("name")
+        if x["name"] in exclude or x.get("isEmpty") or not branch:
+            continue
+        vis = (x.get("visibility") or "").lower() or "unknown"
+        repos.append({"name": x["name"], "branch": branch, "visibility": vis,
+                      "repo_url": x["url"] if vis == "public" else ""})
+    return sorted(repos, key=lambda x: x["name"])
 
 
-def visibility(repo):
-    """공개 여부: public / private / no-remote / unknown. 공개 저장소만 링크 주소를 준다."""
-    r = subprocess.run(["git", "-C", str(repo), "remote", "get-url", "origin"], capture_output=True, text=True)
-    url = r.stdout.strip()
-    if r.returncode != 0 or not url:
-        return {"visibility": "no-remote", "repo_url": ""}
-    m = re.search(r"github\.com[:/](.+?)(?:\.git)?$", url)
-    if not m:
-        return {"visibility": "unknown", "repo_url": ""}
-    gh = subprocess.run(["gh", "repo", "view", m.group(1), "--json", "visibility", "-q", ".visibility"],
-                        capture_output=True, text=True)
-    vis = gh.stdout.strip().lower() if gh.returncode == 0 else ""
-    if vis not in ("public", "private", "internal"):
-        return {"visibility": "unknown", "repo_url": ""}
-    return {"visibility": vis, "repo_url": f"https://github.com/{m.group(1)}" if vis == "public" else ""}
+def sync(owner, info):
+    """repos/<이름>을 기본 브랜치의 최신 상태로 맞추고 그 브랜치의 ref를 돌려준다."""
+    path = CLONES / info["name"]
+    url = f"https://github.com/{owner}/{info['name']}.git"
+    if not (path / ".git").exists():
+        CLONES.mkdir(exist_ok=True)
+        r = subprocess.run(["git", "clone", "--quiet", "--filter=blob:none", "--no-checkout", url, str(path)],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            raise RuntimeError(f"clone 실패: {r.stderr.strip()}")
+    git(path, "fetch", "--quiet", "--prune", "origin")
+    ref = f"refs/remotes/origin/{info['branch']}"
+    # 파일을 읽을 수 있게 기본 브랜치를 펼쳐 둔다. 이 clone은 사본이라, 실행 중 생긴 변경은 덮어쓴다.
+    git(path, "checkout", "--quiet", "--force", "--detach", ref)
+    return path, ref
 
 
-def commit_range(repo, entry, cfg):
+def commit_range(repo, ref, entry, cfg):
     """새 커밋을 고를 git log 인자. 이전 확인 지점이 사라졌으면 날짜로 대신한다."""
     last = entry.get("last")
     if last:
-        r = subprocess.run(["git", "-C", str(repo), "merge-base", "--is-ancestor", last, "HEAD"],
+        r = subprocess.run(["git", "-C", str(repo), "merge-base", "--is-ancestor", last, ref],
                            capture_output=True)
         if r.returncode == 0:
-            return [f"{last}..HEAD"]
-        return [f"--since={entry.get('checked_at', cfg['first_run_since'])}", "HEAD"]
-    return [f"--since={cfg['first_run_since']}", "HEAD"]
+            return [f"{last}..{ref}"]
+        return [f"--since={entry.get('checked_at', cfg['first_run_since'])}", ref]
+    return [f"--since={cfg['first_run_since']}", ref]
 
 
-def collect_repo(repo, entry, cfg):
-    rng = commit_range(repo, entry, cfg)
+def collect_repo(repo, ref, entry, cfg):
+    rng = commit_range(repo, ref, entry, cfg)
     out = git(repo, "log", "--no-merges", f"-n{cfg['max_commits_per_repo']}",
               "--format=%H%x1f%cI%x1f%s%x1f%b%x1e", *rng)
     commits = []
@@ -88,21 +105,21 @@ def collect_repo(repo, entry, cfg):
     if not commits:
         return None
 
-    # 가장 오래된 새 커밋의 부모부터 HEAD까지 비교한다. 첫 커밋이면 빈 트리와 비교한다.
+    # 가장 오래된 새 커밋의 부모부터 기본 브랜치 끝까지 비교한다. 첫 커밋이면 빈 트리와 비교한다.
     parents = git(repo, "rev-list", "--parents", "-n1", commits[-1]["hash"]).split()
     diff_base = parents[1] if len(parents) > 1 else git(repo, "hash-object", "-t", "tree", "/dev/null").strip()
-    files = git(repo, "diff", "--stat=120", diff_base, "HEAD").strip().splitlines()
+    files = git(repo, "diff", "--stat=120", diff_base, ref).strip().splitlines()
     if len(files) > MAX_FILES:
         files = files[:MAX_FILES - 1] + [f"... (파일 {len(files) - MAX_FILES} 개 생략)", files[-1]]
-    doc_files = [f for f in git(repo, "diff", "--name-only", diff_base, "HEAD").split() if f.endswith(DOC_SUFFIXES)]
-    doc_diff = git(repo, "diff", diff_base, "HEAD", "--", *doc_files) if doc_files else ""
+    doc_files = [f for f in git(repo, "diff", "--name-only", diff_base, ref).split() if f.endswith(DOC_SUFFIXES)]
+    doc_diff = git(repo, "diff", diff_base, ref, "--", *doc_files) if doc_files else ""
 
     readme = repo / "README.md"
     return {
         "repo": repo.name,
         "commit_count": len(commits),
         "commits": commits,
-        "head": git(repo, "rev-parse", "HEAD").strip(),
+        "head": git(repo, "rev-parse", ref).strip(),
         "files_changed": files,
         "doc_diff": doc_diff[:MAX_DOC_DIFF_CHARS],
         "doc_diff_truncated": len(doc_diff) > MAX_DOC_DIFF_CHARS,
@@ -113,36 +130,42 @@ def collect_repo(repo, entry, cfg):
 def main():
     cfg = load_json(CONFIG, None)
     state = load_json(STATE, {})
-    root = (ROOT / cfg["projects_root"]).resolve()  # 상대 경로는 이 저장소 기준
+    owner = cfg["github_owner"]
     save = "--save" in sys.argv[1:]
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
-    seen = load_json(SEEN, {})
-    results, errors = [], []
-    # --save는 수집 때 본 저장소만 저장한다. 그 사이 새로 생긴 저장소는 다음 수집 때 처음부터 본다.
-    names = list(seen) if save and seen else discover(root, cfg.get("exclude", []))
-    for name in names:
-        repo = root / name
+    if save:
+        # 수집 때 본 브랜치 끝만 저장한다. 그 사이 생긴 커밋과 저장소는 다음 수집 때 본다.
+        seen = load_json(SEEN, None)
+        if seen is None:
+            sys.exit("저장할 수집 결과가 없습니다. 먼저 python3 scripts/collect.py를 실행하세요.")
+        for name, head in seen.items():
+            state[name] = {"last": head, "checked_at": now}
+        STATE.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n")
+        SEEN.unlink()
+        print(json.dumps({"saved": list(seen), "errors": []}, ensure_ascii=False))
+        return
+
+    seen, results, errors = {}, [], []
+    try:
+        repos = discover(owner, cfg.get("exclude", []))
+    except RuntimeError as e:
+        repos, errors = [], [{"repo": "*", "error": str(e)}]
+    for info in repos:
+        name = info["name"]
         try:
-            if save:
-                head = seen.get(name) or git(repo, "rev-parse", "HEAD").strip()
-                state[name] = {"last": head, "checked_at": now}
-            else:
-                seen[name] = git(repo, "rev-parse", "HEAD").strip()
-                r = collect_repo(repo, state.get(name, {}), cfg)
-                if r:
-                    r.update(visibility(repo))
-                    results.append(r)
+            repo, ref = sync(owner, info)
+            seen[name] = git(repo, "rev-parse", ref).strip()
+            r = collect_repo(repo, ref, state.get(name, {}), cfg)
+            if r:
+                r.update({"branch": info["branch"], "path": f"repos/{name}",
+                          "visibility": info["visibility"], "repo_url": info["repo_url"]})
+                results.append(r)
         except (RuntimeError, FileNotFoundError) as e:
             errors.append({"repo": name, "error": str(e)})
 
-    if save:
-        STATE.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n")
-        SEEN.unlink(missing_ok=True)
-        print(json.dumps({"saved": list(state), "errors": errors}, ensure_ascii=False))
-    else:
-        SEEN.write_text(json.dumps(seen, indent=2) + "\n")
-        print(json.dumps({"collected_at": now, "repos": results, "errors": errors}, indent=2, ensure_ascii=False))
+    SEEN.write_text(json.dumps(seen, indent=2) + "\n")
+    print(json.dumps({"collected_at": now, "repos": results, "errors": errors}, indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":

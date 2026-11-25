@@ -89,6 +89,15 @@ Claude 데스크톱 앱의 예약 작업(Scheduled)으로 `threads-auto`를 주�
 
 예약 작업은 앱이 켜져 있을 때 실행됩니다. 앱이 꺼져 있었다면 다음에 켤 때 실행됩니다.
 
+## 다른 컴퓨터로 옮기기 (윈도우 포함)
+스크립트는 macOS와 윈도우에서 똑같이 돕니다. 파일과 출력은 운영체제 기본 인코딩과 상관없이 UTF-8로 다룹니다.
+
+1. 새 컴퓨터에 Git, `gh`(로그인까지), Node.js, Python 3을 설치합니다. 스킬은 `python3`으로 실행하므로 `python3 --version`이 되는지 확인합니다. 윈도우에서는 Claude Code가 Git Bash로 명령을 실행합니다
+2. 윈도우에서는 경로가 긴 저장소도 받을 수 있게 한 번 설정합니다: `git config --global core.longpaths true`
+3. 이 저장소를 받고 `npm ci`, `npx playwright install chromium`을 합니다
+4. git에 없는 실행 데이터를 옛 컴퓨터에서 복사합니다: `.env`, `state.json`, `posts.log`, `backlog.json`, `drafts/`. `repos/`와 `node_modules/`는 복사하지 않습니다(첫 수집 때 다시 받습니다)
+5. 예약 작업을 새 컴퓨터에 다시 등록합니다. 지시문의 폴더 경로를 새 위치로 바꾸고, 옛 컴퓨터의 예약 작업은 끕니다. 둘 다 켜 두면 같은 날 두 번 돌 수 있습니다
+
 ## 자주 쓰는 명령
 ```bash
 python3 scripts/collect.py

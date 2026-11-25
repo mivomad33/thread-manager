@@ -89,6 +89,15 @@ To stop auto-publishing, set `auto_publish` to `false` or turn off the scheduled
 
 Scheduled tasks run while the app is open. If the app was closed, the task runs the next time it starts.
 
+## Moving to another computer (including Windows)
+The scripts behave the same on macOS and Windows. Files and output are handled as UTF-8 regardless of the system's default encoding.
+
+1. Install Git, `gh` (and sign in), Node.js, and Python 3 on the new computer. The skills run `python3`, so check that `python3 --version` works. On Windows, Claude Code runs commands through Git Bash
+2. On Windows, allow repositories with long paths once: `git config --global core.longpaths true`
+3. Clone this repository and run `npm ci` and `npx playwright install chromium`
+4. Copy the runtime data that is not in git from the old computer: `.env`, `state.json`, `posts.log`, `backlog.json`, `drafts/`. Do not copy `repos/` or `node_modules/` (they are fetched again on the first collection)
+5. Register the scheduled task again on the new computer. Change the folder path in its instructions to the new location, and turn off the task on the old computer. If both stay on, it can run twice on the same day
+
 ## Common commands
 ```bash
 python3 scripts/collect.py

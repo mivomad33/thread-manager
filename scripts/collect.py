@@ -27,20 +27,29 @@ MAX_FILES = 60
 
 
 def git(repo, *args):
-    r = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True)
+    r = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, encoding="utf-8", errors="replace")
     if r.returncode != 0:
         raise RuntimeError(r.stderr.strip())
     return r.stdout
 
 
+def empty_tree(repo):
+    """빈 트리의 해시. /dev/null 없이 구해 윈도우에서도 같게 동작한다."""
+    r = subprocess.run(["git", "-C", str(repo), "hash-object", "-t", "tree", "--stdin"],
+                       input="", capture_output=True, encoding="utf-8")
+    if r.returncode != 0:
+        raise RuntimeError(r.stderr.strip())
+    return r.stdout.strip()
+
+
 def load_json(path, default):
-    return json.loads(path.read_text()) if path.exists() else default
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else default
 
 
 def discover(owner, exclude):
     """owner의 저장소 목록. 보관된 저장소, fork, 빈 저장소, exclude는 뺀다. 실행할 때마다 새로 받는다."""
     r = subprocess.run(["gh", "repo", "list", owner, "--limit", "1000", "--no-archived", "--source",
-                        "--json", "name,visibility,defaultBranchRef,isEmpty,url"], capture_output=True, text=True)
+                        "--json", "name,visibility,defaultBranchRef,isEmpty,url"], capture_output=True, encoding="utf-8")
     if r.returncode != 0:
         raise RuntimeError(f"gh repo list 실패: {r.stderr.strip()}")
     listed = json.loads(r.stdout)
@@ -64,7 +73,7 @@ def sync(owner, info):
     if not (path / ".git").exists():
         CLONES.mkdir(exist_ok=True)
         r = subprocess.run(["git", "clone", "--quiet", "--filter=blob:none", "--no-checkout", url, str(path)],
-                           capture_output=True, text=True)
+                           capture_output=True, encoding="utf-8", errors="replace")
         if r.returncode != 0:
             raise RuntimeError(f"clone 실패: {r.stderr.strip()}")
     git(path, "fetch", "--quiet", "--prune", "origin")
@@ -107,7 +116,7 @@ def collect_repo(repo, ref, entry, cfg):
 
     # 가장 오래된 새 커밋의 부모부터 기본 브랜치 끝까지 비교한다. 첫 커밋이면 빈 트리와 비교한다.
     parents = git(repo, "rev-list", "--parents", "-n1", commits[-1]["hash"]).split()
-    diff_base = parents[1] if len(parents) > 1 else git(repo, "hash-object", "-t", "tree", "/dev/null").strip()
+    diff_base = parents[1] if len(parents) > 1 else empty_tree(repo)
     files = git(repo, "diff", "--stat=120", diff_base, ref).strip().splitlines()
     if len(files) > MAX_FILES:
         files = files[:MAX_FILES - 1] + [f"... (파일 {len(files) - MAX_FILES} 개 생략)", files[-1]]
@@ -123,11 +132,13 @@ def collect_repo(repo, ref, entry, cfg):
         "files_changed": files,
         "doc_diff": doc_diff[:MAX_DOC_DIFF_CHARS],
         "doc_diff_truncated": len(doc_diff) > MAX_DOC_DIFF_CHARS,
-        "readme_head": readme.read_text()[:1500] if readme.exists() else "",
+        "readme_head": readme.read_text(encoding="utf-8", errors="replace")[:1500] if readme.exists() else "",
     }
 
 
 def main():
+    for stream in (sys.stdout, sys.stderr):  # 윈도우 기본 인코딩(cp949)이 아니라 UTF-8로 출력한다
+        stream.reconfigure(encoding="utf-8")
     cfg = load_json(CONFIG, None)
     state = load_json(STATE, {})
     owner = cfg["github_owner"]
@@ -141,7 +152,7 @@ def main():
             sys.exit("저장할 수집 결과가 없습니다. 먼저 python3 scripts/collect.py를 실행하세요.")
         for name, head in seen.items():
             state[name] = {"last": head, "checked_at": now}
-        STATE.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n")
+        STATE.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         SEEN.unlink()
         print(json.dumps({"saved": list(seen), "errors": []}, ensure_ascii=False))
         return
@@ -164,7 +175,7 @@ def main():
         except (RuntimeError, FileNotFoundError) as e:
             errors.append({"repo": name, "error": str(e)})
 
-    SEEN.write_text(json.dumps(seen, indent=2) + "\n")
+    SEEN.write_text(json.dumps(seen, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({"collected_at": now, "repos": results, "errors": errors}, indent=2, ensure_ascii=False))
 
 

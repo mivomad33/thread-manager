@@ -40,7 +40,7 @@ MAX_CHARS = 500
 PUBLISH_WAIT_SECONDS = 30  # 문서 권장: 컨테이너 생성 후 평균 30초 기다린 뒤 게시
 REFRESH_AFTER_DAYS = 30
 REQUIRED_META = ("status", "repos", "visibility", "commits", "created", "reason")
-LEAK_PATTERNS = ("/Users/", "THREADS_", "access_token", "sk-ant-", "BEGIN PRIVATE KEY")
+LEAK_PATTERNS = ("/Users/", "\\Users\\", "THREADS_", "access_token", "sk-ant-", "BEGIN PRIVATE KEY")
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg")
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 MAX_IMAGES = 20
@@ -54,7 +54,7 @@ URL_PATTERN = re.compile(r"https?://[^\s<>()]+")
 def read_env():
     env = {}
     if ENV.exists():
-        for line in ENV.read_text().splitlines():
+        for line in ENV.read_text(encoding="utf-8").splitlines():
             if "=" in line and not line.lstrip().startswith("#"):
                 k, v = line.split("=", 1)
                 env[k.strip()] = v.strip()
@@ -64,7 +64,7 @@ def read_env():
 def write_env(updates):
     env = read_env()
     env.update(updates)
-    ENV.write_text("".join(f"{k}={v}\n" for k, v in env.items()))
+    ENV.write_text("".join(f"{k}={v}\n" for k, v in env.items()), encoding="utf-8")
     ENV.chmod(0o600)
 
 
@@ -131,7 +131,7 @@ def threads_len(text):
 
 def parse_draft(path):
     """frontmatter(--- 사이의 key: value)와, '---' 줄로 나뉜 본문 조각들을 돌려준다."""
-    lines = Path(path).read_text().splitlines()
+    lines = Path(path).read_text(encoding="utf-8").splitlines()
     if not lines or lines[0].strip() != "---":
         sys.exit(f"{path}: frontmatter가 없습니다.")
     end = lines.index("---", 1)
@@ -152,7 +152,7 @@ def parse_draft(path):
 
 
 def set_meta(path, updates):
-    lines = Path(path).read_text().splitlines()
+    lines = Path(path).read_text(encoding="utf-8").splitlines()
     end = lines.index("---", 1)
     head = lines[1:end]
     for k, v in updates.items():
@@ -162,7 +162,7 @@ def set_meta(path, updates):
                 break
         else:
             head.append(f"{k}: {v}")
-    Path(path).write_text("\n".join(["---", *head, *lines[end:]]) + "\n")
+    Path(path).write_text("\n".join(["---", *head, *lines[end:]]) + "\n", encoding="utf-8")
 
 
 def draft_images(meta):
@@ -213,7 +213,7 @@ def check_links(parts):
 def archive():
     """끝난 초안(posted·rejected·deleted)과, 만든 지 backlog_max_age_days일이 지난 초안(draft → expired)을
     그림과 함께 drafts/archive/로 옮긴다. drafts/에는 아직 올릴 수 있는 초안만 남는다."""
-    max_age = json.loads(CONFIG.read_text()).get("backlog_max_age_days", 14)
+    max_age = json.loads(CONFIG.read_text(encoding="utf-8")).get("backlog_max_age_days", 14)
     now = datetime.now(timezone.utc)
     moved = []
     for path in sorted((ROOT / "drafts").glob("*.md")):
@@ -242,10 +242,10 @@ def archive():
 
 def upload_image(local, dest):
     """공개 이미지 저장소에 파일을 올리고, Threads가 가져갈 공개 주소를 돌려준다."""
-    repo = json.loads(CONFIG.read_text())["images_repo"]
+    repo = json.loads(CONFIG.read_text(encoding="utf-8"))["images_repo"]
     body = json.dumps({"message": f"Add {dest}", "content": base64.b64encode(local.read_bytes()).decode()})
     r = subprocess.run(["gh", "api", "-X", "PUT", f"repos/{repo}/contents/{dest}", "--input", "-"],
-                       input=body, capture_output=True, text=True)
+                       input=body, capture_output=True, encoding="utf-8")
     if r.returncode != 0:
         sys.exit(f"이미지 업로드 실패 ({dest}): {r.stderr.strip() or r.stdout.strip()}")
     url = f"https://raw.githubusercontent.com/{repo}/main/{urllib.parse.quote(dest)}"
@@ -330,7 +330,7 @@ def post(path):
 
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     set_meta(path, {"status": "posted", "posted_at": now, "post_ids": ",".join(ids), "permalink": permalink})
-    with POSTS_LOG.open("a") as f:
+    with POSTS_LOG.open("a", encoding="utf-8") as f:
         f.write(json.dumps({"draft": Path(path).name, "posted_at": now, "ids": ids, "permalink": permalink,
                             "repos": meta.get("repos", ""), "approved_by": meta.get("approved_by", "user"),
                             "images": image_urls, "text": parts[0]},
@@ -339,6 +339,8 @@ def post(path):
 
 
 def main():
+    for stream in (sys.stdout, sys.stderr):  # 윈도우 기본 인코딩(cp949)이 아니라 UTF-8로 출력한다
+        stream.reconfigure(encoding="utf-8")
     if len(sys.argv) < 2:
         sys.exit(__doc__)
     cmd, args = sys.argv[1], sys.argv[2:]

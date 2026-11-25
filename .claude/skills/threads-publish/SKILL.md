@@ -1,6 +1,7 @@
 ---
 name: threads-publish
 description: drafts/에 쌓인 Threads 초안을 사용자에게 하나씩 보여 주고, 승인한 것만 Threads 공식 API로 올린다. 수정·반려도 처리하고 반려 이유와 자동 게시 뒤 지운 글의 이유는 style.md에 남긴다. 사용자가 "/threads-publish", "쓰레드 초안 검토해줘", "초안 올려줘", "자동으로 올라간 글 지웠어" 등을 요청할 때만 사용한다.
+model: claude-sonnet-5-5
 ---
 
 # Threads 초안 검토와 게시

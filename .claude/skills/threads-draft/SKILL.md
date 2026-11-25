@@ -1,6 +1,7 @@
 ---
 name: threads-draft
 description: GitHub 계정(config.json의 github_owner)의 저장소에서 기본 브랜치의 지난 확인 이후 커밋을 모아, 밀려 있던 후보 주제와 함께 Threads에 올릴 만한 것을 골라 초안을 drafts/에 쓴다. 게시는 하지 않는다. 예약 작업이 주기적으로 실행하거나, 사용자가 "/threads-draft", "쓰레드 초안 만들어줘" 등을 요청할 때 사용한다.
+model: claude-sonnet-5-5
 ---
 
 # Threads 초안 만들기

@@ -1,6 +1,7 @@
 ---
 name: threads-auto
 description: threads-draft로 초안을 만든 뒤, 아직 올리지 않은 초안 중 가장 좋은 하나를 골라 사용자 확인 없이 Threads에 올리고 알린다. 예약 작업이 평일마다 실행하거나, 사용자가 "/threads-auto", "자동 게시 돌려줘" 등을 요청할 때만 사용한다.
+model: claude-sonnet-5-5
 ---
 
 # Threads 자동 게시
